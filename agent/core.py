@@ -13,6 +13,7 @@ Hierarchical Planner → Actor → Validator loop with:
 from __future__ import annotations
 
 import asyncio
+import os
 import json
 import time
 from datetime import datetime
@@ -27,6 +28,7 @@ from rich.panel import Panel
 from .config import AgentConfig
 from .observation import get_page_observation, observation_to_prompt
 from .tools import TOOL_SCHEMAS, ToolExecutor
+from .browser_launcher import launch_browser, is_termux
 
 console = Console()
 
@@ -134,61 +136,9 @@ class BrowserAgent:
         await self.close()
 
     async def start(self):
+        """Launch browser — auto-detects Termux system Chromium / CDP / desktop Playwright."""
         self._pw = await async_playwright().start()
-
-        # Remote CDP (useful on Termux — attach to Chrome elsewhere)
-        if getattr(self.config, "cdp_url", None):
-            self.browser = await self._pw.chromium.connect_over_cdp(self.config.cdp_url)
-            if self.browser.contexts:
-                self.context = self.browser.contexts[0]
-            else:
-                self.context = await self.browser.new_context()
-            self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
-            if self.config.verbose:
-                console.print(f"[green]Connected via CDP[/green] {self.config.cdp_url}")
-            return
-
-        launch_args = {
-            "headless": self.config.headless,
-            "args": [
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-infobars",
-                "--window-size={},{}".format(self.config.viewport_width, self.config.viewport_height),
-            ],
-        }
-        if self.config.slow_mo:
-            launch_args["slow_mo"] = self.config.slow_mo
-        if self.config.stealth_mode:
-            launch_args["args"].append("--disable-features=IsolateOrigins,site-per-process")
-
-        self.browser = await self._pw.chromium.launch(**launch_args)
-
-        ctx_args: Dict[str, Any] = {
-            "viewport": {"width": self.config.viewport_width, "height": self.config.viewport_height},
-            "locale": self.config.locale,
-            "timezone_id": self.config.timezone_id,
-            "ignore_https_errors": self.config.ignore_https_errors,
-            "bypass_csp": self.config.bypass_csp,
-            "permissions": self.config.permissions,
-            "accept_downloads": True,
-        }
-        if self.config.user_agent:
-            ctx_args["user_agent"] = self.config.user_agent
-        if self.config.geolocation:
-            ctx_args["geolocation"] = self.config.geolocation
-
-        self.context = await self.browser.new_context(**ctx_args)
-
-        # Stealth: remove webdriver flag
-        if self.config.stealth_mode:
-            await self.context.add_init_script(
-                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-            )
-
-        self.page = await self.context.new_page()
-        self.page.set_default_timeout(int(self.config.step_timeout * 1000))
+        self.browser, self.context, self.page = await launch_browser(self.config, self._pw)
 
         if self.config.save_traces:
             self.trace_dir = Path(self.config.trace_dir)
@@ -199,8 +149,13 @@ class BrowserAgent:
         Path(self.config.download_dir).mkdir(parents=True, exist_ok=True)
 
         if self.config.verbose:
-            console.print("[bold green]Ultra BrowserAgent started[/bold green] "
-                          f"(headless={self.config.headless}, model={self.config.model})")
+            mode = "Termux" if is_termux() else "desktop"
+            cdp = getattr(self.config, "cdp_url", None) or os.environ.get("CDP_URL")
+            extra = f" CDP={cdp}" if cdp else ""
+            console.print(
+                f"[bold green]Ultra BrowserAgent started[/bold green] "
+                f"(mode={mode}, headless={self.config.headless}, model={self.config.model}{extra})"
+            )
 
     async def close(self):
         if self.context:

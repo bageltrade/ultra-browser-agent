@@ -60,9 +60,16 @@ async def main():
 asyncio.run(main())
 ```
 
-## Termux
+## Termux (real on-device browsing)
 
-See [TERMUX.md](TERMUX.md). Use the web UI on-device; attach a remote Chrome via CDP for full automation.
+```bash
+bash scripts/termux_setup.sh
+export NVIDIA_API_KEY="nvapi-..."
+export PLAYWRIGHT_BROWSERS_PATH=0
+python run_web.py
+```
+
+Installs Termux Chromium + wires Playwright over CDP automatically. Full guide: [TERMUX.md](TERMUX.md).
 
 ## Architecture
 
