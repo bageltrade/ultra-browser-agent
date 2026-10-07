@@ -7,9 +7,9 @@ from typing import Optional, Dict, Any, List
 
 @dataclass
 class AgentConfig:
-    """Ultra-advanced configuration for the Browser Agent."""
+    """Ultra-advanced configuration for the Browser Agent (Termux + server friendly)."""
 
-    # ── LLM (NVIDIA Nemotron) ──────────────────────────────────────────────
+    # ── LLM (NVIDIA Nemotron / OpenAI-compatible) ──────────────────────────
     api_base: str = "https://integrate.api.nvidia.com/v1"
     api_key: str = field(default_factory=lambda: os.getenv("NVIDIA_API_KEY", ""))
     model: str = "nvidia/nemotron-3-super-120b-a12b"
@@ -17,41 +17,45 @@ class AgentConfig:
     max_tokens: int = 8192
     extra_body: Dict[str, Any] = field(default_factory=dict)
 
-    # ── Agent loop ─────────────────────────────────────────────────────────
-    max_steps: int = 40
-    max_plan_revisions: int = 4
-    reflection_every_n_steps: int = 4
-    step_timeout: float = 45.0
-    timeout_seconds: float = 2400.0
+    # ── Agent loop (much higher defaults) ──────────────────────────────────
+    max_steps: int = 120                    # was 40 — complex workflows need room
+    max_plan_revisions: int = 6
+    reflection_every_n_steps: int = 6
+    step_timeout: float = 60.0
+    timeout_seconds: float = 7200.0         # 2 hours for long runs
     allow_parallel_tools: bool = True
 
     # ── Browser ────────────────────────────────────────────────────────────
     headless: bool = True
-    viewport_width: int = 1440
-    viewport_height: int = 900
+    viewport_width: int = 1280
+    viewport_height: int = 800
     user_agent: Optional[str] = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
     )
     slow_mo: int = 0
     locale: str = "en-US"
-    timezone_id: str = "America/New_York"
+    timezone_id: str = "UTC"
     geolocation: Optional[Dict[str, float]] = None
-    permissions: List[str] = field(default_factory=lambda: ["geolocation", "notifications"])
+    permissions: List[str] = field(default_factory=lambda: ["geolocation"])
     bypass_csp: bool = True
     ignore_https_errors: bool = True
     stealth_mode: bool = True
+    # Termux / constrained environments: set to True to skip launching a local browser
+    # and only use the planning/extract path (or connect to a remote CDP endpoint).
+    dry_run: bool = False
+    cdp_url: Optional[str] = None          # e.g. "http://127.0.0.1:9222" for remote Chrome
 
     # ── Observation ────────────────────────────────────────────────────────
     max_a11y_nodes: int = 350
-    max_visible_text_chars: int = 4000
+    max_visible_text_chars: int = 4500
     include_aria_raw_fallback: bool = True
-    capture_screenshots: bool = True
+    capture_screenshots: bool = False      # off by default to save disk on Termux
     screenshot_on_error: bool = True
 
     # ── Memory & history ───────────────────────────────────────────────────
     keep_full_message_history: bool = False
-    max_history_messages: int = 28
+    max_history_messages: int = 32
     enable_episodic_memory: bool = True
 
     # ── Safety / observability ─────────────────────────────────────────────

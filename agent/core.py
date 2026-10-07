@@ -135,6 +135,19 @@ class BrowserAgent:
 
     async def start(self):
         self._pw = await async_playwright().start()
+
+        # Remote CDP (useful on Termux — attach to Chrome elsewhere)
+        if getattr(self.config, "cdp_url", None):
+            self.browser = await self._pw.chromium.connect_over_cdp(self.config.cdp_url)
+            if self.browser.contexts:
+                self.context = self.browser.contexts[0]
+            else:
+                self.context = await self.browser.new_context()
+            self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
+            if self.config.verbose:
+                console.print(f"[green]Connected via CDP[/green] {self.config.cdp_url}")
+            return
+
         launch_args = {
             "headless": self.config.headless,
             "args": [

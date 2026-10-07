@@ -8,7 +8,7 @@ async def main():
         api_key=os.environ["NVIDIA_API_KEY"],
         model="nvidia/nemotron-3-super-120b-a12b",
         headless=True,
-        max_steps=12,
+        max_steps=80,
     )
     async with BrowserAgent(config) as agent:
         result = await agent.run_task(

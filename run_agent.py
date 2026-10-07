@@ -19,7 +19,7 @@ async def main():
     parser.add_argument("prompt", nargs="?", help="Natural language goal")
     parser.add_argument("--url", default=None)
     parser.add_argument("--schema", default=None, help="JSON schema file or inline JSON")
-    parser.add_argument("--max-steps", type=int, default=25)
+    parser.add_argument("--max-steps", type=int, default=80)
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--no-planner", action="store_true")
     parser.add_argument("--api-key", default=None)
