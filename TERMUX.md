@@ -1,9 +1,13 @@
-# Termux install (v2.4 — no jiter / no Playwright)
+# Termux install v2.5 (stdlib only — no Rust)
 
-Termux Python often **cannot build** `jiter` (Rust) or install `playwright` wheels.
-UBA uses:
-- **httpx** for the NVIDIA API (no `openai` package)
-- **pure CDP** for Chromium (no Playwright)
+Python 3.14 on Android **cannot build** pydantic-core / jiter / maturin.
+This release uses:
+
+| Component | Implementation |
+|-----------|----------------|
+| Web UI | Python **stdlib** `http.server` (no FastAPI/pydantic) |
+| LLM API | **urllib** (no openai/httpx) |
+| Browser | **pure CDP** + system Chromium (no Playwright) |
 
 ## Install
 
@@ -13,24 +17,27 @@ pkg install -y python git which x11-repo chromium
 
 cd ~
 git clone https://github.com/bageltrade/ultra-browser-agent.git
-# or: cd ~/ultra-browser-agent && git pull
+# or: cd ultra-browser-agent && git pull
 
 cd ~/ultra-browser-agent
 
-# Do NOT run: pip install -U pip
-# Do NOT use: requirements.txt  (desktop only)
-
-pip install -r requirements-termux.txt
+# Optional (pure Python). Skip if it fails — not required:
+pip install websockets || true
 
 export NVIDIA_API_KEY="nvapi-YOUR-KEY"
 export UBA_USE_CDP=1
-export UBA_HTTPX_LLM=1
+export UBA_STDLIB_UI=1
 
 python run_web.py
-# → http://127.0.0.1:8080
+# open http://127.0.0.1:8080
 ```
 
-One-shot:
+**Do not** run:
+- `pip install -U pip`
+- `pip install -r requirements.txt` (desktop only)
+- anything that pulls pydantic / openai / playwright
+
+## One-shot
 
 ```bash
 bash scripts/termux_setup.sh
@@ -39,31 +46,25 @@ export NVIDIA_API_KEY="nvapi-YOUR-KEY"
 python run_web.py
 ```
 
-## If you already failed mid-install
+## CLI test
+
+```bash
+export NVIDIA_API_KEY="nvapi-YOUR-KEY"
+export UBA_USE_CDP=1
+python run_agent.py "Extract the main heading" --url https://example.com
+```
+
+## If pip still tries to build Rust packages
+
+You may have an old requirements install. Reset:
 
 ```bash
 cd ~/ultra-browser-agent
 git pull
-pip install -r requirements-termux.txt
-export UBA_HTTPX_LLM=1
-export UBA_USE_CDP=1
+# do not pip install requirements.txt
+export UBA_STDLIB_UI=1 UBA_USE_CDP=1
 export NVIDIA_API_KEY="nvapi-YOUR-KEY"
 python run_web.py
 ```
 
-## CLI test
-
-```bash
-python run_agent.py "Extract the main heading" --url https://example.com
-```
-
-## Dependencies (Termux only)
-
-| Package | Why |
-|---------|-----|
-| httpx | NVIDIA API |
-| websockets | Chromium CDP |
-| fastapi + uvicorn + jinja2 | Chat UI |
-| python-dotenv | optional env files |
-
-**Not used on Termux:** openai, jiter, playwright, maturin, rustc
+The UI and agent run with **only** the Python standard library + system Chromium.

@@ -30,7 +30,14 @@ class CDPConnection:
         self._reader_task: Optional[asyncio.Task] = None
 
     async def connect(self):
-        import websockets
+        try:
+            import websockets
+        except ImportError as e:
+            raise RuntimeError(
+                "websockets package required for CDP. Install with:\n"
+                "  pip install websockets\n"
+                "(pure Python — no Rust/compiler needed)"
+            ) from e
         self._ws = await websockets.connect(
             self.ws_url,
             max_size=32 * 1024 * 1024,
