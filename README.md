@@ -62,14 +62,18 @@ asyncio.run(main())
 
 ## Termux (real on-device browsing)
 
+Do **not** install desktop `requirements.txt` or upgrade pip.
+
 ```bash
-bash scripts/termux_setup.sh
+pkg install -y python git x11-repo chromium
+pip install -r requirements-termux.txt   # NOT requirements.txt
 export NVIDIA_API_KEY="nvapi-..."
-export PLAYWRIGHT_BROWSERS_PATH=0
+export UBA_USE_CDP=1
 python run_web.py
 ```
 
-Installs Termux Chromium + wires Playwright over CDP automatically. Full guide: [TERMUX.md](TERMUX.md).
+Full guide: [TERMUX.md](TERMUX.md).
+
 
 ## Architecture
 

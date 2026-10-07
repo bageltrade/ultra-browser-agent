@@ -21,7 +21,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from openai import AsyncOpenAI
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+try:
+    from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+except ImportError:
+    async_playwright = None  # type: ignore
+    Browser = BrowserContext = Page = object  # type: ignore
 from rich.console import Console
 from rich.panel import Panel
 
@@ -136,8 +140,12 @@ class BrowserAgent:
         await self.close()
 
     async def start(self):
-        """Launch browser — auto-detects Termux system Chromium / CDP / desktop Playwright."""
-        self._pw = await async_playwright().start()
+        """Launch browser — Termux uses pure CDP; desktop uses Playwright."""
+        from .browser_launcher import playwright_available, is_termux
+
+        self._pw = None
+        if playwright_available() and not is_termux() and not getattr(self.config, "cdp_url", None) and not os.environ.get("CDP_URL") and os.environ.get("UBA_USE_CDP") != "1":
+            self._pw = await async_playwright().start()
         self.browser, self.context, self.page = await launch_browser(self.config, self._pw)
 
         if self.config.save_traces:
@@ -158,16 +166,24 @@ class BrowserAgent:
             )
 
     async def close(self):
-        if self.context:
-            await self.context.close()
-        if self.browser:
-            await self.browser.close()
+        try:
+            if self.context:
+                await self.context.close()
+        except Exception:
+            pass
+        try:
+            if self.browser:
+                await self.browser.close()
+        except Exception:
+            pass
         if self._pw:
-            await self._pw.stop()
+            try:
+                await self._pw.stop()
+            except Exception:
+                pass
         if self.config.verbose:
             console.print("[green]BrowserAgent closed[/green]")
 
-    # ── LLM helpers ────────────────────────────────────────────────────────
 
     async def _call_llm(
         self,

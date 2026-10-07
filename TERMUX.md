@@ -1,126 +1,85 @@
-# Ultra Browser Agent on Termux — Real Browsing
+# Termux install (real browsing, no Playwright wheel)
 
-Full **on-device** Chromium automation inside Termux (no PC required).
+Official `playwright` packages **do not publish Android wheels**.  
+UBA uses a **pure CDP driver** + system Chromium instead.
 
-## One-shot install
+## Quick install
 
 ```bash
 pkg update -y && pkg upgrade -y
-pkg install -y python git x11-repo
-pkg install -y chromium
-pip install -r requirements.txt
+pkg install -y python git which x11-repo chromium
 
-# Optional (extra Termux Playwright helpers)
-# pip install termux-playwright && termux-playwright-install
+cd ~
+git clone https://github.com/bageltrade/ultra-browser-agent.git
+cd ultra-browser-agent
+
+# IMPORTANT: do NOT run  pip install -U pip
+pip install -r requirements-termux.txt
 
 export NVIDIA_API_KEY="nvapi-YOUR-KEY"
+export UBA_USE_CDP=1
 export PLAYWRIGHT_BROWSERS_PATH=0
+
+python run_web.py
+# open http://127.0.0.1:8080
 ```
 
-Or run the helper:
+Or:
 
 ```bash
 bash scripts/termux_setup.sh
+source ~/.uba_env
+export NVIDIA_API_KEY="nvapi-YOUR-KEY"
+python run_web.py
 ```
 
-## How real browsing works on Termux
+## Why the old error happened
 
-The agent **auto-detects Termux** and:
+| Command | Problem |
+|---------|---------|
+| `pip install -U pip` | Forbidden — breaks Termux `python-pip` |
+| `pip install playwright` | No wheel for Android → "No matching distribution" |
 
-1. Finds system Chromium (`pkg install chromium` from x11-repo)
-2. Starts it headless with `--remote-debugging-port=9222` (CDP)
-3. Connects Playwright over CDP — **real page load, JS, clicks, extraction**
+Use **`requirements-termux.txt`** only on Termux.
 
-You can also point at any CDP endpoint:
-
-```bash
-export CDP_URL="http://127.0.0.1:9222"
-```
-
-## Verify Chromium
+## Verify
 
 ```bash
 which chromium-browser || which chromium
-chromium-browser --version   # or: chromium --version
+python -c "import openai, fastapi, websockets; print('python ok')"
 
-# Manual CDP test
-chromium-browser --headless --no-sandbox --disable-gpu \
-  --remote-debugging-port=9222 --user-data-dir=$HOME/.config/uba-chromium about:blank &
-curl -s http://127.0.0.1:9222/json/version
+# Start agent CLI test
+export NVIDIA_API_KEY="nvapi-..."
+export UBA_USE_CDP=1
+python run_agent.py "Extract the main heading" --url https://example.com
 ```
 
-## Run the agent
+## How browsing works
 
-### Web chat UI (recommended on phone)
+```
+UBA Python
+  → pure CDP driver (agent/cdp_driver.py)
+    → Chromium (--remote-debugging-port=9222)
+      → real websites
+```
+
+No Playwright package required on the phone.
+
+## Permanent env
 
 ```bash
-export NVIDIA_API_KEY="nvapi-..."
-export PLAYWRIGHT_BROWSERS_PATH=0
-python run_web.py
-# open http://127.0.0.1:8080 in your browser
+echo 'export NVIDIA_API_KEY="nvapi-YOUR-KEY"' >> ~/.bashrc
+echo 'export UBA_USE_CDP=1' >> ~/.bashrc
+echo 'export PLAYWRIGHT_BROWSERS_PATH=0' >> ~/.bashrc
+source ~/.bashrc
 ```
-
-### CLI
-
-```bash
-export NVIDIA_API_KEY="nvapi-..."
-export PLAYWRIGHT_BROWSERS_PATH=0
-python run_agent.py "Extract top 5 HN titles with points" --url https://news.ycombinator.com
-```
-
-### Python
-
-```python
-import asyncio, os
-from agent import BrowserAgent, AgentConfig
-
-async def main():
-    cfg = AgentConfig(
-        api_key=os.environ["NVIDIA_API_KEY"],
-        max_steps=80,
-        headless=True,
-        # cdp_url="http://127.0.0.1:9222",  # optional override
-    )
-    async with BrowserAgent(cfg) as agent:
-        r = await agent.run_task(
-            "Go to example.com and extract the main heading",
-            url="https://example.com",
-        )
-        print(r)
-
-asyncio.run(main())
-```
-
-## Env vars
-
-| Variable | Meaning |
-|----------|---------|
-| `NVIDIA_API_KEY` | Required |
-| `PLAYWRIGHT_BROWSERS_PATH=0` | Required on Termux (skip bundled browsers) |
-| `CHROMIUM_PATH` | Override Chromium binary path |
-| `CDP_URL` | Connect to existing Chrome/Chromium CDP |
-| `UBA_AUTO_CDP=0` | Disable auto-start of local CDP Chromium |
-| `UBA_FORCE_TERMUX=1` | Force Termux launch path on any platform |
-| `UBA_HOST` / `UBA_PORT` | Web UI bind (default 0.0.0.0:8080) |
 
 ## Troubleshooting
 
-| Problem | Fix |
-|---------|-----|
-| `No browser available on Termux` | `pkg install x11-repo chromium` |
-| Playwright Android platform error | `export PLAYWRIGHT_BROWSERS_PATH=0` |
-| Chromium crashes / OOM | Close other apps; lower `max_steps`; keep headless |
-| Slow SPA pages | Normal on mobile CPU; agent uses `--js-flags=--jitless` |
-| Port 9222 in use | Kill old Chromium: `pkill -f remote-debugging-port` |
-
-## Architecture on device
-
-```
-Termux Python (UBA)
-       │
-       ▼
-Playwright ──CDP──▶ Chromium (pkg install chromium)
-                       │
-                       ▼
-                 Real websites
-```
+| Error | Fix |
+|-------|-----|
+| Installing pip is forbidden | Skip `pip install -U pip` |
+| No matching distribution for playwright | Use `requirements-termux.txt` |
+| Chromium not found | `pkg install x11-repo chromium` |
+| CDP port failed | `pkill -f remote-debugging-port` then retry |
+| websockets missing | `pip install websockets` |

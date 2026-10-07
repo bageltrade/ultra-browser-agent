@@ -11,7 +11,12 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from playwright.async_api import Page, TimeoutError as PlaywrightTimeout, Download
+try:
+    from playwright.async_api import Page, TimeoutError as PlaywrightTimeout, Download
+except ImportError:
+    Page = object  # type: ignore
+    PlaywrightTimeout = TimeoutError
+    Download = object  # type: ignore
 
 
 TOOL_SCHEMAS: List[Dict[str, Any]] = [

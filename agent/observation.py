@@ -14,7 +14,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from playwright.async_api import Page
+try:
+    from playwright.async_api import Page
+except ImportError:
+    Page = object  # type: ignore
 
 
 INTERESTING_ROLES = {
@@ -80,14 +83,43 @@ def format_nodes_for_llm(nodes: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-async def get_aria_snapshot(page: Page) -> str:
+async def get_aria_snapshot(page) -> str:
+    """Works with Playwright Page or CDPPage."""
     try:
-        return (await page.locator("body").aria_snapshot()) or ""
+        # Playwright
+        if hasattr(page, "locator"):
+            loc = page.locator("body")
+            if hasattr(loc, "aria_snapshot"):
+                return (await loc.aria_snapshot()) or ""
+        # CDP / accessibility tree
+        if hasattr(page, "accessibility"):
+            tree = await page.accessibility.snapshot(interesting_only=True)
+            if tree:
+                return _format_ax_tree(tree)
+        return ""
     except Exception as e:
         return f"(aria_snapshot failed: {e})"
 
 
-async def get_visible_text(page: Page, max_chars: int = 4000) -> str:
+def _format_ax_tree(node, depth=0, lines=None, limit=400):
+    if lines is None:
+        lines = []
+    if len(lines) >= limit or not node:
+        return "\n".join(lines)
+    role = node.get("role") or ""
+    name = (node.get("name") or "").replace("\n", " ")[:120]
+    if role and role not in ("none", "generic", "InlineTextBox"):
+        prefix = "  " * min(depth, 6)
+        if name:
+            lines.append(f'{prefix}- {role} "{name}"')
+        else:
+            lines.append(f"{prefix}- {role}")
+    for child in node.get("children") or []:
+        _format_ax_tree(child, depth + 1, lines, limit)
+    return "\n".join(lines)
+
+
+async def get_visible_text(page, max_chars: int = 4000) -> str:
     try:
         text = await page.evaluate(
             """(maxChars) => {
@@ -125,7 +157,7 @@ async def get_visible_text(page: Page, max_chars: int = 4000) -> str:
         return f"(visible_text failed: {e})"
 
 
-async def get_form_state(page: Page) -> str:
+async def get_form_state(page) -> str:
     try:
         data = await page.evaluate(
             """() => {
@@ -157,7 +189,7 @@ async def get_form_state(page: Page) -> str:
         return ""
 
 
-async def detect_dialogs(page: Page) -> str:
+async def detect_dialogs(page) -> str:
     try:
         count = await page.locator('[role="dialog"], [aria-modal="true"], .modal, .popup, [class*="overlay"]').count()
         if count:
@@ -168,7 +200,7 @@ async def detect_dialogs(page: Page) -> str:
 
 
 async def get_page_observation(
-    page: Page,
+    page,
     max_a11y_nodes: int = 350,
     max_visible_text: int = 4000,
     screenshot_dir: Optional[Path] = None,
