@@ -1,12 +1,9 @@
-# Termux — NO playwright wheel (unsupported on Android)
-openai>=1.40.0
+# Termux / Android — minimal deps, NO compiler, NO openai/jiter/playwright
 httpx>=0.27.0
-rich>=13.0.0
-pydantic>=2.0.0
-python-dotenv>=1.0.0
-tenacity>=8.0.0
-aiofiles>=23.0.0
+websockets>=12.0
 fastapi>=0.110.0
 uvicorn>=0.27.0
 jinja2>=3.1.0
-websockets>=12.0
+python-dotenv>=1.0.0
+# optional nicer logs (pure Python; skip if install fails)
+# rich>=13.0.0

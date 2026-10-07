@@ -26,8 +26,13 @@ try:
 except ImportError:
     async_playwright = None  # type: ignore
     Browser = BrowserContext = Page = object  # type: ignore
-from rich.console import Console
-from rich.panel import Panel
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+except ImportError:
+    class Console:
+        def print(self, *a, **k): print(*a)
+    def Panel(content, title='', border_style=''): return f'=== {title} ===\n{content}'
 
 from .config import AgentConfig
 from .observation import get_page_observation, observation_to_prompt
@@ -118,10 +123,8 @@ class BrowserAgent:
     def __init__(self, config: Optional[AgentConfig] = None):
         self.config = config or AgentConfig()
         self.config.validate()
-        self.client = AsyncOpenAI(
-            base_url=self.config.api_base,
-            api_key=self.config.api_key,
-        )
+        from .llm import make_llm_client
+        self.client = make_llm_client(self.config.api_base, self.config.api_key)
         self._pw = None
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
@@ -200,6 +203,7 @@ class BrowserAgent:
         if tools is not None:
             kwargs["tools"] = tools
         if self.config.extra_body:
+            # official SDK uses extra_body=; httpx client merges into JSON
             kwargs["extra_body"] = self.config.extra_body
 
         last_err = None
